@@ -6,12 +6,66 @@ Eight garage setup sheets for the Fantic bikes in the MX OEM pack: XXF 450 and X
 
 MX Bikes saves setups as **binary** `.stp` files, not INI text. A `.stp` stores each setting as a position in that bike's option list, tagged with the bike's internal ID and version, and the game rejects a file whose tag does not match. A text file dropped into the setups folder is ignored.
 
-So these `.ini` files are setup sheets to dial in by hand:
+So these `.ini` files are setup sheets. There are two ways to use them: dial them in by hand, or convert them with `tools/ini2stp.py` (next section).
+
+By hand:
 
 1. Pick the bike, go to the track, open the garage.
 2. Set each value from the sheet. The sections follow the garage pages (see the key below).
 3. Save the setup under a name. The game writes a valid `.stp` to `Documents\PiBoSo\MX Bikes\profiles\<profile>\setups\`.
 4. Use the garage **Copy** button to reuse it on other tracks.
+
+## Converting the sheets to .stp
+
+`tools/ini2stp.py` writes `.stp` files from the sheets. It needs Python 3.8 or later and nothing else.
+
+**It has not been tested against the game.** The `.stp` layout comes from a third-party reverse-engineering project and I had no real `.stp` to check it with. Do the check in step 2 before you trust the output, and keep a backup of your setups folder.
+
+The sheets do not contain the bike's internal ID or its option lists, so each bike needs two files from you:
+
+1. **A template.** In the garage, load the bike's default setup, choose the engine map and tyres you want, and save it as `template`. Copy that `.stp` out of your setups folder.
+2. **A check of the layout.** Change one setting, such as fork compression, save it under a second name, and run:
+
+   ```
+   python tools/ini2stp.py diff template.stp second.stp
+   ```
+
+   It should print one line, naming the setting you changed. If it names something else, stop: the layout does not match and the converter will write wrong values.
+3. **A garage file.** Create an empty one, then fill it in from the garage screens:
+
+   ```
+   python tools/ini2stp.py init template.stp -o garage/XXF450.ini
+   ```
+
+   Each line takes four numbers in the sheets' units: lowest value, highest value, step, and the value shown with the template loaded.
+
+   ```ini
+   [FrontSuspension]
+   SpringRate = 4.4, 5.4, 0.1, 5.0
+   Compression = 0, 20, 1, 10
+   ```
+
+   A line left as `?` keeps the template's setting.
+
+Then convert every sheet for that bike:
+
+```
+python tools/ini2stp.py build "setups/XXF450/*.ini" --template template.stp --garage garage/XXF450.ini
+```
+
+The files land in `stp_out/`. Copy them into the folder the template came from and load them in the garage.
+
+What the converter does and does not do:
+
+- It snaps each value to the nearest option and clamps it to the range, and says so when it does.
+- `[GarageLimits]` entries use the real limit from the garage file, whatever number the sheet has.
+- It stops with an error if a setting's stored position disagrees with the value you entered for the template.
+- It prints the template's bike ID. One template and one garage file per bike: it cannot tell if you pair a 250 sheet with a 450 template.
+- `Map` is kept from the template, because the map is stored as a position and the sheet only has a name.
+- `RaceSag` is a readout, not a setting. Load the setup and adjust rear preload until the readout matches.
+- Everything not on the sheet (tyres, fuel, brakes, gears, swingarm length) is kept from the template.
+
+`python tools/ini2stp.py dump file.stp` prints every stored position. `python -m unittest discover tools` runs the tests.
 
 ## The pack
 
